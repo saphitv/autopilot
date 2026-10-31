@@ -1,6 +1,6 @@
 ---
 name: autopilot
-description: Playtest the game open in the user's Unreal, Unity or Godot editor with Autopilot (its `autopilot` MCP server) - explore the game for bugs, test it (go over it and report every problem), verify a claim about how it works or looks, or reach a goal in play. Use when the user asks to playtest, test, verify, check or explore their game, or to use Autopilot.
+description: Playtest the game open in the user's Unreal, Unity, Godot or Roblox Studio editor with Autopilot (its `autopilot` MCP server) - explore the game for bugs, test it (go over it and report every problem), verify a claim about how it works or looks, or reach a goal in play. Use when the user asks to playtest, test, verify, check or explore their game, or to use Autopilot.
 ---
 
 # Playtesting with Autopilot
@@ -9,7 +9,8 @@ Autopilot plays the game open in the user's editor: a fast decision model makes 
 harness you write for this game and this request. You research the game's code, try things in the live game, write
 and revise the harness, and report what play showed. Its tools come from the `autopilot` MCP server.
 
-1. The game's project must be open in Unreal, Unity or Godot with the Autopilot plugin, its Autopilot tab connected.
+1. The game's project must be open in Unreal, Unity or Godot with the Autopilot plugin, its Autopilot tab connected
+   (Roblox Studio: the place open in Studio, with `autopilot serve` and `python -m autopilot.roblox` running for it).
    When start_run says Autopilot's agent service isn't running, tell the user that and stop.
 2. Call `start_run` with the request in the user's words and its kind. A request is one of four types:
    - an exploration ("Explore the crafting system in Lvl_Main"): `explore`, with `minutes` of play when the user
