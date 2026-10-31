@@ -228,3 +228,24 @@ def test_no_reads_or_inputs_without_own_playtest(plugin):
         plugin._answer({"type": "request", "id": i, "op": op, "args": {"key": "W", "mode": "press"}})
     assert all(not r["ok"] and r["status"] == 409 for r in sent)
     assert plugin.mcp.calls == []
+
+
+def test_a_roblox_run_that_cannot_start_fails(monkeypatch):
+    """prepare() raises for Roblox when the playtest can't start (Studio held): no run whose every probe fails."""
+    from autopilot import cli
+
+    class Link:
+        hello = {"engine": "roblox", "project": "Place"}
+
+        def status(self, text):
+            pass
+
+    def refuse(*a, **k):
+        raise RuntimeError("409: Studio is in a playtest held by another task")
+
+    monkeypatch.setattr(cli, "remember_project", lambda *a, **k: None)
+    monkeypatch.setattr(cli, "find_project", lambda *a, **k: None)
+    monkeypatch.setattr(cli, "choose_level", lambda *a, **k: None)
+    monkeypatch.setattr(cli, "start_level", refuse)
+    with pytest.raises(RuntimeError, match="couldn't start: 409: Studio is in a playtest held"):
+        cli.prepare(Link())

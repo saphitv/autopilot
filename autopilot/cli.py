@@ -279,7 +279,7 @@ def prepare(link, path=None, level=None):
     try:
         start_level(link, game, game.level_info)
     except Exception as e:
-        if game.engine == "roblox":
+        if getattr(game.engine, "name", None) == "roblox":
             # (Studio held by someone else, or in a playtest that isn't the plugin's: the run can't play, and its
             # start says why rather than starting a run whose every probe fails)
             raise RuntimeError(f"the game couldn't start: {e}") from None
