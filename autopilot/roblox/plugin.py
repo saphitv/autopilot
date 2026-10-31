@@ -373,7 +373,15 @@ class RobloxPlugin:
             except HoldsError as e:
                 self.refused = f"{e} Stop and report; run again once it has released Studio"
                 raise OpError(409, self.refused)
-        self.mcp.call("start_stop_play", {"is_start": True}, timeout=60)
+        try:
+            self.mcp.call("start_stop_play", {"is_start": True}, timeout=60)
+        except Exception:
+            self.started_play = True  # (under this plugin's claim: stopped if it started anyway, the claim released)
+            try:
+                self._stop_play()
+            except Exception as e:  # noqa: BLE001 - the start's own error is the one told
+                log(f"undoing a failed start: {e}")
+            raise
         self.started_play = True
         self.refused = None
         deadline = time.monotonic() + 45

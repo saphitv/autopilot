@@ -103,6 +103,8 @@ def answers(questions, data):
             options = list(criteria or {})
             pick = a.get("choice") if a.get("choice") in options else options[0]
             c = min(1.0, max(0.0, float(a.get("confidence") if a.get("confidence") is not None else 1.0)))
+            if len(options) > 1:
+                c = max(c, 1.0 / len(options) + 0.01)  # (the runtime plays the likeliest: the pick stays on top)
             rest = (1.0 - c) / (len(options) - 1) if len(options) > 1 else 0.0
             probs = {o: (c if o == pick else rest) for o in options}
             if len(options) == 1:
@@ -187,8 +189,7 @@ class LunaClient:
         usage = getattr(result, "usage", None)
         last = getattr(usage, "last", None) if usage is not None else None
         if last is not None:
-            tokens = {"input": max(0, (last.input_tokens or 0) - (last.cached_input_tokens or 0)),
-                      "output": last.output_tokens}
+            tokens = {"input": last.input_tokens or 0, "output": last.output_tokens}  # (cached input included)
             held[1] = last.input_tokens or 0
         if held[1] < ROTATE_TOKENS:
             with self.lock:

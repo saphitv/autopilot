@@ -95,3 +95,9 @@ def test_roblox_runs_are_told_the_game_keeps_running():
     assert "keeps running" in external.instructions_text(roblox, "runs/x")
     assert "paused between them" not in external.instructions_text(roblox, "runs/x")
     assert external.pauses("godot") and not external.pauses("roblox")
+
+
+def test_a_low_confidence_pick_is_still_the_one_played():
+    q = {"pick": Choice(instructions="Pick one.", criteria={"go": "walk", "wait": None})}
+    probs = luna.response("m", q, {"pick": {"choice": "go", "confidence": 0.4}}).choices["pick"].probabilities
+    assert max(probs, key=probs.get) == "go"

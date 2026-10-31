@@ -249,3 +249,29 @@ def test_a_roblox_run_that_cannot_start_fails(monkeypatch):
     monkeypatch.setattr(cli, "start_level", refuse)
     with pytest.raises(RuntimeError, match="couldn't start: 409: Studio is in a playtest held"):
         cli.prepare(Link())
+
+
+class FailingStart(PlayStudio):
+    """A Studio whose Play request fails (Play started anyway, or not)."""
+
+    def __init__(self, starts):
+        super().__init__(mode="Edit")
+        self.starts = starts
+
+    def call(self, tool, args=None, timeout=None, studio=True):
+        if tool == "start_stop_play" and args.get("is_start"):
+            self.mode = "Play" if self.starts else "Edit"
+            raise rp.StudioError("start_stop_play timed out")
+        return super().call(tool, args, timeout, studio)
+
+
+@pytest.mark.parametrize("starts", [False, True])
+def test_a_failed_start_leaves_no_claim_or_playtest(plugin, starts):
+    """Play requested under the plugin's claim, and the request fails: the claim is released, Play stopped if on."""
+    plugin.mcp = FailingStart(starts)
+    plugin.running = plugin.started_play = False
+    plugin.holds = FakeHolds(mine=False)
+    plugin.holds.claim = lambda reason: None
+    with pytest.raises(rp.StudioError):
+        plugin._start_play()
+    assert plugin.holds.released == 1 and plugin.mcp.mode == "Edit" and not plugin.started_play
