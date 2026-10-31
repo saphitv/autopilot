@@ -51,3 +51,19 @@ def test_decider_picks_luna(monkeypatch):
     assert isinstance(runtime.jev_client(warm=False), luna.LunaClient)
     monkeypatch.setenv("AUTOPILOT_DECIDER", "")
     assert not luna.enabled()
+
+
+def test_vision_through_chatgpt_sign_in(monkeypatch, tmp_path):
+    from autopilot import vision
+    from autopilot.agents import codex
+
+    auth = tmp_path / "auth.json"
+    auth.write_text(json.dumps({"auth_mode": "chatgpt", "tokens": {"access_token": "x"}}))
+    monkeypatch.setattr(codex, "user_auth_file", lambda: str(auth))
+    for k in ("OPENAI_API_KEY", "CODEX_API_KEY", "AUTOPILOT_VISION_MODEL"):
+        monkeypatch.delenv(k, raising=False)
+    monkeypatch.setenv("AUTOPILOT_CODEX_AUTH", "")
+    assert vision.route("openai", "gpt-6.1-sol")[0] is None
+    monkeypatch.setenv("AUTOPILOT_CODEX_AUTH", "chatgpt")
+    r, why = vision.route("openai", "gpt-6.1-sol")
+    assert why is None and r[0] == "codex" and r[3] == "gpt-6.1-sol"

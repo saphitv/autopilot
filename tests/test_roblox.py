@@ -149,3 +149,14 @@ def test_resize_jpeg():
     assert (w, h) == (320, 180) and small[:2] == b"\xff\xd8"
     same, w, h = rp.resize_jpeg(jpeg, 1920, 90)
     assert same is jpeg and (w, h) == (640, 360)
+
+
+def test_recording_goes_on_after_a_restart(plugin, monkeypatch):
+    """A restart's Stop ends the recording with the playtest; the new playtest records on as asked."""
+    started = []
+    monkeypatch.setattr(plugin, "_need_play", lambda: None)
+    monkeypatch.setattr(plugin, "_begin_recording", lambda *s: started.append(s) or {"recording": True})
+    plugin.op_record({"action": "start", "fps": 4, "max_dim": 640, "quality": 70})
+    assert plugin.record_settings == (4.0, 640, 70)
+    plugin.op_record({"action": "stop"})
+    assert plugin.record_settings is None and started == [(4.0, 640, 70)]

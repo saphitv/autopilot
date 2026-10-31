@@ -77,6 +77,34 @@ SWEEP = ("Last: anything in these frames that looks unusual for a game's picture
          "rest moves, text cut off or overlapping): say what and in which frames; or say nothing like that shows.")
 
 
+CHATGPT_MODEL = "gpt-6.1-sol"  # through the user's ChatGPT sign-in, when the agent's model isn't known
+_chatgpt = None  # the Codex that describes through the ChatGPT sign-in (autopilot/luna.py), started on first use
+_chatgpt_lock = threading.Lock()
+
+
+def _chatgpt_sign_in():
+    """The user's Codex sign-in with ChatGPT, when Autopilot is asked to use it (AUTOPILOT_CODEX_AUTH=chatgpt)."""
+    from .agents import codex
+
+    try:
+        return codex.chatgpt_sign_in()
+    except Exception:  # noqa: BLE001 - asked for, but not signed in: no route
+        return None
+
+
+def _chatgpt_client():
+    global _chatgpt
+    with _chatgpt_lock:
+        if _chatgpt is None:
+            import atexit
+
+            from .luna import LunaClient
+
+            _chatgpt = LunaClient()
+            atexit.register(_chatgpt.close)
+        return _chatgpt
+
+
 def route(provider, agent_model=None):
     """(wire, API root, key, model, path) that describe frames for an agent on provider, else (None, why)."""
     if provider in NO_VISION:
@@ -86,6 +114,10 @@ def route(provider, agent_model=None):
     wire, root, keys, model, path = ROUTES[provider]
     root = (os.environ.get(provider.upper().replace("-", "_") + "_BASE_URL") or "").strip().rstrip("/") or root
     key = next((os.environ[k] for k in keys if (os.environ.get(k) or "").strip()), None)
+    if not key and provider == "openai" and _chatgpt_sign_in():
+        # (no key, but the user's own Codex signed in with ChatGPT: its models look at pictures too)
+        return ("codex", None, None, (os.environ.get("AUTOPILOT_VISION_MODEL") or "").strip() or agent_model
+                or CHATGPT_MODEL, None), None
     if not key:
         return None, f"there is no {provider} key"
     model = (os.environ.get("AUTOPILOT_VISION_MODEL") or "").strip() or model or agent_model
@@ -269,6 +301,11 @@ class Describer:
         """(the description, the model that gave it, its usage)."""
         wire, root, key, model, path = self.route
         parts = self._content(frames, questions)
+        if wire == "codex":
+            text, usage = _chatgpt_client().look(SYSTEM, parts, model, EFFORT)
+            if self.usage is not None and usage:
+                self.usage.add("llm", model, **usage)
+            return text or "(no description)", model, usage
         if wire == "anthropic":
             try:
                 return self._anthropic(root, key, model, parts)

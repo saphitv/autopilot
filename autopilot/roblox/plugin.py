@@ -160,6 +160,7 @@ class RobloxPlugin:
         self.inset = 58
         self.viewport = (1805, 1031)
         self.recording = None
+        self.record_settings = None  # (fps, max_dim, quality) the brain asked to record at, until it asks to stop
         self._frame_n = itertools.count(1)
         self.codex = {}
         self.findings = {}
@@ -375,6 +376,11 @@ class RobloxPlugin:
         except StudioError as e:
             log(f"server log tap: {e}")
         self._read_screen_facts()
+        if self.record_settings and self.media_enabled:
+            try:
+                self._begin_recording(*self.record_settings)
+            except Exception as e:
+                log(f"record after the restart: {e}")
         self.send({"type": "events", "events": [{"kind": "session", "t": self.t(), "running": True}], "t": self.t()})
         return {"running": True, "scene": self.project}
 
@@ -730,6 +736,7 @@ class RobloxPlugin:
 
     def op_record(self, a):
         if (a.get("action") or "start") == "stop":
+            self.record_settings = None
             n = self._stop_recording()
             return {"recording": False, "frames": n}
         self._need_play()
@@ -737,6 +744,11 @@ class RobloxPlugin:
             raise OpError(409, "no picture: recording is off (--no-media)")
         fps = min(max(float(a.get("fps") or 5), 0.1), 60)
         max_dim, quality = int(a.get("max_dim") or 960), int(a.get("quality") or 75)
+        # (kept: Stop ends the recording with the playtest, and a restart's new playtest records on with these)
+        self.record_settings = (fps, max_dim, quality)
+        return self._begin_recording(fps, max_dim, quality)
+
+    def _begin_recording(self, fps, max_dim, quality):
         self._stop_recording()
         jpeg, w, h = self._picture(max_dim, quality)  # (fails here, not in the loop, when there's no picture)
         rec = {"stop": threading.Event(), "frames": 0}

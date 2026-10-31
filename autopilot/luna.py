@@ -200,6 +200,29 @@ class LunaClient:
             raise RuntimeError(f"Luna's answer isn't JSON: {text[:300]!r}") from None
         return response(self.model, questions, data, tokens)
 
+    def look(self, system, parts, model, effort="low"):
+        """A model's answer to parts ([(kind, value)]: "text" and base64 JPEG "image", as autopilot/vision.py makes
+        them), on a new thread with system as its instructions: (text, usage {"input", "output", "cache_read"})."""
+        from openai_codex import ApprovalMode, ImageInput, Sandbox, TextInput
+        from openai_codex.types import ReasoningEffort
+
+        from .agents import codex as cx
+
+        codex = self._start()
+        items = [TextInput(v) if kind == "text" else ImageInput(f"data:image/jpeg;base64,{v}") for kind, v in parts]
+        thread = codex.thread_start(approval_mode=ApprovalMode.deny_all, sandbox=Sandbox.read_only, cwd=self.work,
+                                    model=model, base_instructions=system, ephemeral=True,
+                                    config=dict(cx.LOCKDOWN, **QUIET))
+        eff = ReasoningEffort(effort) if effort in {e.value for e in ReasoningEffort} else None
+        result = thread.run(items, effort=eff)
+        last = getattr(getattr(result, "usage", None), "last", None)
+        usage = None
+        if last is not None:
+            cached = last.cached_input_tokens or 0
+            usage = {"input": max(0, (last.input_tokens or 0) - cached), "output": last.output_tokens or 0,
+                     "cache_read": cached, "cache_write": 0}
+        return (getattr(result, "final_response", None) or "").strip(), usage
+
     def close(self):
         with self.lock:
             codex, self.codex = self.codex, None
