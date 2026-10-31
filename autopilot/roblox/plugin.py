@@ -154,6 +154,7 @@ class RobloxPlugin:
         # the session
         self.running = False
         self.started_play = False
+        self.refused = None  # (why the last session start was refused: Studio held by someone else)
         self._t_game = None
         self._t_wall = None
         self.held = {}  # roblox key or mouse axis -> {"until": monotonic, "value": v, "rate": bool, "seconds": s}
@@ -326,7 +327,8 @@ class RobloxPlugin:
 
     def _need_play(self):
         if not self.running:
-            raise OpError(409, "No game is running (start one with session start)")
+            why = self.refused or "start one with session start"
+            raise OpError(409, f"No playtest of Autopilot's is running ({why})")
 
     # -- the session -------------------------------------------------------------------------------------
 
@@ -358,8 +360,9 @@ class RobloxPlugin:
         st = self.mcp.state()
         if st.get("mode") == "Play":
             if not (self.started_play or self._owns_play()):
-                raise OpError(409, "Studio is already in a playtest this plugin didn't start (a person's or another "
-                                   "task's): it is left alone. Run again once it has stopped and been released.")
+                self.refused = ("Studio is in a playtest a person or another task started: it is left alone. Stop "
+                                "and report; run again once that task has released Studio")
+                raise OpError(409, self.refused)
             self.running = self.started_play = True
             self._wait_character(30)
             return {"running": True, "scene": self.project}
@@ -369,9 +372,11 @@ class RobloxPlugin:
             try:
                 self.holds.claim(f"Autopilot playtest ({self.holder}): Play only, no edits, no save.")
             except HoldsError as e:
-                raise OpError(409, str(e))
+                self.refused = f"{e} Stop and report; run again once it has released Studio"
+                raise OpError(409, self.refused)
         self.mcp.call("start_stop_play", {"is_start": True}, timeout=60)
         self.started_play = True
+        self.refused = None
         deadline = time.monotonic() + 45
         while time.monotonic() < deadline:
             if "Client" in (self.mcp.state().get("datamodels") or []):

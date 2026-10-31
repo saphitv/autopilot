@@ -195,7 +195,7 @@ def test_someone_elses_playtest_is_left_alone(plugin):
     plugin.mcp = PlayStudio()
     plugin.running = False
     plugin.holds = FakeHolds(mine=False)
-    with pytest.raises(rp.OpError, match="didn't start"):
+    with pytest.raises(rp.OpError, match="left alone"):
         plugin.op_session({"action": "start"})
     assert plugin.op_session({"action": "status"})["running"] is False
     plugin.op_session({"action": "stop"})
