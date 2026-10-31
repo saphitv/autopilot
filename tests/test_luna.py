@@ -67,3 +67,31 @@ def test_vision_through_chatgpt_sign_in(monkeypatch, tmp_path):
     monkeypatch.setenv("AUTOPILOT_CODEX_AUTH", "chatgpt")
     r, why = vision.route("openai", "gpt-6.1-sol")
     assert why is None and r[0] == "codex" and r[3] == "gpt-6.1-sol"
+
+
+def test_users_own_agent_looks_through_chatgpt_sign_in(monkeypatch, tmp_path):
+    """describe_frames for the user's own agent (autopilot mcp) with no key: OpenAI's model through the sign-in."""
+    from autopilot.agents import codex, external
+
+    auth = tmp_path / "auth.json"
+    auth.write_text(json.dumps({"auth_mode": "chatgpt", "tokens": {"access_token": "x"}}))
+    monkeypatch.setattr(codex, "user_auth_file", lambda: str(auth))
+    for _, keys in external.FALLBACK_PROVIDERS:
+        for k in keys:
+            monkeypatch.delenv(k, raising=False)
+    monkeypatch.setenv("AUTOPILOT_CODEX_AUTH", "")
+    assert external.current_provider() == "anthropic"
+    monkeypatch.setenv("AUTOPILOT_CODEX_AUTH", "chatgpt")
+    assert external.current_provider() == "openai"
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "k")
+    assert external.current_provider() == "anthropic"
+
+
+def test_roblox_runs_are_told_the_game_keeps_running():
+    from autopilot import engines
+    from autopilot.agents import external
+
+    roblox = engines.ENGINES["roblox"]
+    assert "keeps running" in external.instructions_text(roblox, "runs/x")
+    assert "paused between them" not in external.instructions_text(roblox, "runs/x")
+    assert external.pauses("godot") and not external.pauses("roblox")

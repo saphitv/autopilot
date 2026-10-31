@@ -67,7 +67,7 @@ may be changed). Paths are relative to this game's folder, which isn't your work
 for it, never your own, and don't touch the user's project or the game's files with your own tools. Act on the game
 only through the game's tools.
 
-Call the game's tools one at a time: the game runs only inside a call and is paused between them. A call that takes
+Call the game's tools one at a time: {between}. A call that takes
 long (an episode, starting the game) answers "still going": call wait until it gives the result. Every game tool
 answers with the time used of the run's budget. Once report says "Reported", the run is over: tell the user its
 outcome in a few lines (the Autopilot tab in their editor shows the whole result).
@@ -93,8 +93,7 @@ with visual: true). describe_frames, Autopilot's own describer, is a fallback fo
 pictures: it works only where the user has a key (or Aura) for one.
 """
 
-START = """Autopilot run {marker} started on {project}: the game is open in the user's editor and paused between your
-calls. First read {instructions} with read_file, all of it (in parts: it is long): it is how to work and what the kit
+START = """Autopilot run {marker} started on {project}: the game is open in the user's editor and {between_calls}. First read {instructions} with read_file, all of it (in parts: it is long): it is how to work and what the kit
 is. The request and its briefing follow (also in {request}).
 
 {message}"""
@@ -116,11 +115,14 @@ FALLBACK_PROVIDERS = (("anthropic", ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"
 
 
 def current_provider():
-    """The provider whose vision model describe_frames falls back on (the run's telemetry routes its calls)."""
+    """The provider whose vision model describe_frames falls back on (the run's telemetry routes its calls): with no
+    key, OpenAI's through the user's ChatGPT sign-in when Autopilot is asked to use it (AUTOPILOT_CODEX_AUTH=chatgpt)."""
     for provider, keys in FALLBACK_PROVIDERS:
         if any((os.environ.get(k) or "").strip() for k in keys):
             return provider
-    return "anthropic"
+    from .. import vision
+
+    return "openai" if vision._chatgpt_sign_in() else "anthropic"
 
 
 def text_result(text, error=False):
@@ -308,7 +310,19 @@ def instructions_text(engine, run_rel):
             .replace("{max_frames}", str(vision.MAX_FRAMES))
             .replace("{describer}", " ".join(line.strip() for line in vision.SYSTEM.splitlines()
                                              if line.strip()))
-            .replace("{sweep}", vision.SWEEP))
+            .replace("{sweep}", vision.SWEEP)
+            .replace("{between}", between(engine)))
+
+
+def pauses(engine):
+    """Whether the game stops between the agent's calls (a Roblox playtest can't pause: autopilot/engines/roblox.md)."""
+    return getattr(engine, "name", engine) != "roblox"
+
+
+def between(engine):
+    return ("the game runs only inside a call and is paused between them" if pauses(engine) else
+            "a Roblox playtest can't pause, so the game keeps running between them (what a call saw may have "
+            "moved on by the next)")
 
 
 def implement(game, project, prompt, run_id=None, say=None, client=None, model=None, timeout=None, stop=None,
@@ -333,6 +347,8 @@ def implement(game, project, prompt, run_id=None, say=None, client=None, model=N
         with open(os.path.join(session.run_dir, REQUEST), "w", encoding="utf-8", newline="\n") as f:
             f.write(message)
         desk.open(session, files, START.format(marker=desk.marker, project=project, message=message,
+                                               between_calls="paused between your calls" if pauses(engines.of(game))
+                                               else "running between your calls (a Roblox playtest can't pause)",
                                                instructions=f"{session.run_rel}/{INSTRUCTIONS}",
                                                request=f"{session.run_rel}/{REQUEST}"))
         while True:

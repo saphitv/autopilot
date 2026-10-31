@@ -45,7 +45,7 @@ START_SPEC = (
     "time_limit_minutes: the run's time limit (default 30). level: the level to play, when you know its path or "
     "name (default: the one open in the editor; the briefing lists the project's levels, and restart_level moves to "
     "the one the request means). Answers with the briefing and the instructions to follow; "
-    "the game is paused between calls.",
+    "the game is paused between calls (a Roblox playtest can't pause: it keeps running).",
     {"type": "object", "properties": {
         "request": {"type": "string"}, "kind": {"type": "string", "enum": ["verify", "goal", "explore"]},
         "minutes": {"type": "number"}, "time_limit_minutes": {"type": "number"}, "level": {"type": "string"}},
