@@ -23,12 +23,14 @@ import urllib.request
 PROTOCOL = "2025-06-18"
 WAIT_SECONDS = float(os.environ.get("AUTOPILOT_MCP_WAIT") or 40)  # (under Codex's 60 s for one call)
 
-INSTRUCTIONS = ("Autopilot playtests the game open in the user's game editor (Unreal, Unity or Godot): call start_run "
-                "with the user's request (explore it, test it, verify a claim, reach a goal), then follow the "
-                "INSTRUCTIONS.md it names. A long call answers \"still going\": call wait for its result.")
+INSTRUCTIONS = ("Autopilot playtests the game open in the user's game editor (Unreal, Unity, Godot or Roblox "
+                "Studio): call start_run with the user's request (explore it, test it, verify a claim, reach a goal), "
+                "then follow the INSTRUCTIONS.md it names. A long call answers \"still going\": call wait for its "
+                "result.")
 
 NOT_RUNNING = ("Autopilot's agent service isn't running: open the game's project in Unreal, Unity or Godot with the "
-               "Autopilot plugin, and let the Autopilot tab connect. Then call start_run again.")
+               "Autopilot plugin, and let the Autopilot tab connect (Roblox Studio: `autopilot serve` and "
+               "`python -m autopilot.roblox` running beside it). Then call start_run again.")
 TOO_OLD = ("The Autopilot agent service running now is older than this way of using it: update it (the Autopilot "
            "tab's Settings, or reinstall the plugin's agent service), then call start_run again.")
 
