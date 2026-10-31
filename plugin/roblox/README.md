@@ -60,7 +60,7 @@ Anthropic or OpenAI key there is no picture viewer: a check of how something *lo
 - `view` doesn't report `held`, `openings`, `ways_up` or `touching`.
 - Clicks on fast-moving GUIs can land before the game accepts them. The agent retries, as a player would.
 
-### As a service, for agents on another machine (MCP)
+## As a service, for agents on another machine (MCP)
 
 Run the brain and the plugin beside each other for good (e.g. systemd user services: `autopilot serve --port 8765`
 and `python -m autopilot.roblox --studio-mcp "ssh <studio host> …/StudioMCP" --holds <studio host>:<repo>`, with the
@@ -82,7 +82,7 @@ a playtest a person or another task started is left alone, and the tools say Stu
 Measured from Linux to a Mac on the same network: a read or an input costs the same over ssh as locally (about 24
 ms); a full-size screenshot 0.55 s instead of 0.34 s.
 
-### What it uses
+## What it uses
 
 `python -m autopilot.ledger` lists each run's AI usage (memory/usage.jsonl): the agent's tokens (or "own plan" for a
 user's own agent through MCP), the decision model's calls and tokens, the vision model's calls, and on a ChatGPT plan
