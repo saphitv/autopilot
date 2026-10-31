@@ -360,8 +360,7 @@ class RobloxPlugin:
         st = self.mcp.state()
         if st.get("mode") == "Play":
             if not (self.started_play or self._owns_play()):
-                self.refused = ("Studio is in a playtest a person or another task started: it is left alone. Stop "
-                                "and report; run again once that task has released Studio")
+                self.refused = self._whose_play()
                 raise OpError(409, self.refused)
             self.running = self.started_play = True
             self._wait_character(30)
@@ -425,6 +424,21 @@ class RobloxPlugin:
                                                  "Client")))
         except Exception:
             pass
+
+    def _whose_play(self):
+        """Why the playtest Studio is in isn't Autopilot's, in words for the agent."""
+        held = []
+        if self.holds:
+            try:
+                held = self.holds.blocking()
+            except Exception as e:
+                log(f"holds: {e}")
+        if held:
+            who = "; ".join(f"{c.get('holderThreadId')} ({c.get('phase')})" for c in held)
+            return (f"Studio is in a playtest held by another task ({who}): it is left alone. Wait for that task "
+                    "to release play-stop and Stop the playtest, then start a new run")
+        return ("Studio is in a playtest that no task holds (a person playtesting, or a task that released Studio "
+                "without stopping Play): it is left alone. Whoever started it must press Stop; then start a new run")
 
     def _owns_play(self):
         if not self.holds:

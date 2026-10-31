@@ -179,12 +179,16 @@ class PlayStudio(FakeMCP):
 
 
 class FakeHolds:
-    def __init__(self, mine):
+    def __init__(self, mine, others=()):
         self._mine = mine
+        self.others = list(others)
         self.released = 0
 
     def mine(self):
         return self._mine
+
+    def blocking(self):
+        return self.others
 
     def release(self):
         self.released += 1
@@ -195,7 +199,10 @@ def test_someone_elses_playtest_is_left_alone(plugin):
     plugin.mcp = PlayStudio()
     plugin.running = False
     plugin.holds = FakeHolds(mine=False)
-    with pytest.raises(rp.OpError, match="left alone"):
+    with pytest.raises(rp.OpError, match="no task holds"):
+        plugin.op_session({"action": "start"})
+    plugin.holds = FakeHolds(mine=False, others=[{"holderThreadId": "boss-task", "phase": "testing"}])
+    with pytest.raises(rp.OpError, match="held by another task .boss-task"):
         plugin.op_session({"action": "start"})
     assert plugin.op_session({"action": "status"})["running"] is False
     plugin.op_session({"action": "stop"})
