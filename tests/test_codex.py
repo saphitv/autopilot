@@ -330,3 +330,40 @@ def test_a_codex_runs_model_calls_are_counted_and_kept_like_any_agents(tmp_path,
     assert llm and llm[0]["model"] == sessionmod.MODELS["openai"] and llm[0]["calls"] == 2
     assert llm[0]["input"] + llm[0]["cache_read"] == 200 and llm[0]["output"] == 40
     assert (run_dir / "telemetry" / "llm.jsonl.gz").exists()
+
+
+# -- the user's Codex sign-in with ChatGPT (AUTOPILOT_CODEX_AUTH=chatgpt) ---------------------------------------
+
+def test_chatgpt_sign_in_needs_asking(tmp_path, monkeypatch):
+    (tmp_path / "auth.json").write_text('{"auth_mode": "chatgpt", "tokens": {"refresh_token": "r1"}}')
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path))
+    monkeypatch.delenv("AUTOPILOT_CODEX_AUTH", raising=False)
+    assert codexagent.chatgpt_sign_in() is None
+    monkeypatch.setenv("AUTOPILOT_CODEX_AUTH", "chatgpt")
+    assert codexagent.chatgpt_sign_in() == str(tmp_path / "auth.json")
+    (tmp_path / "auth.json").write_text('{"OPENAI_API_KEY": null}')
+    with pytest.raises(RuntimeError, match="codex login"):
+        codexagent.chatgpt_sign_in()
+
+
+def test_refreshed_sign_in_goes_back(tmp_path):
+    src, home = tmp_path / "auth.json", tmp_path / "home"
+    home.mkdir()
+    src.write_text("r1")
+    copy, original = codexagent.lend_sign_in(str(src), str(home))
+    assert open(copy).read() == "r1" and (os.stat(copy).st_mode & 0o777) == 0o600
+    assert not codexagent.return_sign_in(str(src), copy, original)  # (not refreshed: nothing to do)
+    open(copy, "w").write("r2")  # the run's Codex refreshed it
+    assert codexagent.return_sign_in(str(src), copy, original)
+    assert src.read_text() == "r2"
+
+
+def test_users_own_refresh_wins(tmp_path):
+    src, home = tmp_path / "auth.json", tmp_path / "home"
+    home.mkdir()
+    src.write_text("r1")
+    copy, original = codexagent.lend_sign_in(str(src), str(home))
+    open(copy, "w").write("r2")
+    src.write_text("r3")  # the user's own Codex refreshed meanwhile
+    assert not codexagent.return_sign_in(str(src), copy, original)
+    assert src.read_text() == "r3"

@@ -11,7 +11,9 @@ and a request it makes anyway is declined (decline()). It reads and writes files
 and lib.py. Every run gets a temporary Codex home, so the user's own Codex setup (config, AGENTS.md, skills, sign-in) is
 never loaded and a run doesn't depend on what earlier runs left.
 
-OpenAI only: the key is OPENAI_API_KEY (or CODEX_API_KEY), the model AUTOPILOT_MODEL, else OpenAI's default
+OpenAI only: the key is OPENAI_API_KEY (or CODEX_API_KEY); without one, AUTOPILOT_CODEX_AUTH=chatgpt lends the run the
+user's own Codex sign-in with ChatGPT (their auth.json, copied into the run's Codex home and handed back refreshed:
+see lend_sign_in). The model is AUTOPILOT_MODEL, else OpenAI's default
 (session.MODELS); it must be one Codex knows (it offers no tools to others). Installed with the codex extra
 (`autopilot[codex]`: the SDK and Codex itself, about 150 MB).
 """
@@ -78,6 +80,65 @@ def current_provider():
 def api_key():
     """The OpenAI key for Codex: OPENAI_API_KEY, else CODEX_API_KEY; None when neither is set."""
     return (os.environ.get("OPENAI_API_KEY") or os.environ.get("CODEX_API_KEY") or "").strip() or None
+
+
+CHATGPT = "chatgpt"
+
+
+def user_auth_file():
+    """The user's own Codex sign-in: auth.json in their Codex home ($CODEX_HOME, else ~/.codex)."""
+    home = os.environ.get("CODEX_HOME") or os.path.join(os.path.expanduser("~"), ".codex")
+    return os.path.join(home, "auth.json")
+
+
+def chatgpt_sign_in():
+    """The user's Codex sign-in file when AUTOPILOT_CODEX_AUTH=chatgpt asks for it (their ChatGPT plan instead of an
+    API key), else None. Raises when it was asked for but there is no ChatGPT sign-in to lend."""
+    if (os.environ.get("AUTOPILOT_CODEX_AUTH") or "").strip().lower() != CHATGPT:
+        return None
+    path = user_auth_file()
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        data = None
+    if not isinstance(data, dict) or not data.get("tokens"):
+        raise RuntimeError(f"AUTOPILOT_CODEX_AUTH=chatgpt, but {path} holds no ChatGPT sign-in: sign in with "
+                           "`codex login` first.")
+    return path
+
+
+def lend_sign_in(src, home):
+    """Copy the user's sign-in into the run's Codex home; returns (the copy, the original's bytes) for
+    return_sign_in."""
+    with open(src, "rb") as f:
+        original = f.read()
+    copy = os.path.join(home, "auth.json")
+    fd = os.open(copy, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "wb") as f:
+        f.write(original)
+    return copy, original
+
+
+def return_sign_in(src, copy, original):
+    """Codex refreshes its tokens in the home it runs in, and a refresh can retire the refresh token the user's own
+    file still holds: a sign-in the run refreshed goes back to the user's file, unless that file changed meanwhile
+    (their own Codex refreshed it: theirs wins). Returns whether it was written back."""
+    try:
+        with open(copy, "rb") as f:
+            new = f.read()
+        with open(src, "rb") as f:
+            current = f.read()
+    except OSError:
+        return False
+    if new == original or current != original or not new.strip():
+        return False
+    tmp = src + ".autopilot-tmp"
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "wb") as f:
+        f.write(new)
+    os.replace(tmp, src)
+    return True
 
 
 def system_text(engine, run_rel):
@@ -242,9 +303,11 @@ def implement(game, project, prompt, run_id=None, say=None, client=None, model=N
         raise RuntimeError("The Codex agent needs Codex: install Autopilot with the codex extra "
                            "(`autopilot[codex]`), or pick another agent with AUTOPILOT_AGENT.") from None
     key = api_key()
-    if not key:
+    sign_in = None if key else chatgpt_sign_in()
+    if not key and not sign_in:
         raise RuntimeError("The Codex agent needs an OpenAI key: set OPENAI_API_KEY (the first-run setup saves it "
-                           "when OpenAI is picked).")
+                           "when OpenAI is picked), or AUTOPILOT_CODEX_AUTH=chatgpt to use your own Codex sign-in "
+                           "with ChatGPT.")
     model = model or sessionmod.model(PROVIDER)
     session = sessionmod.open_session(game, project, prompt, run_id, say=say, client=client, timeout=timeout,
                                       stop=stop, steering=steering, play_seconds=play_seconds,
@@ -253,6 +316,7 @@ def implement(game, project, prompt, run_id=None, say=None, client=None, model=N
     work = tempfile.mkdtemp(prefix="autopilot-codex-")  # (Codex's own home for this run: not in the game's memory)
     home = os.path.join(work, "home")
     os.makedirs(home)
+    lent = lend_sign_in(sign_in, home) if sign_in else None
     server = ToolServer(session, say=session.say, files=True)
     spec = os.path.join(home, "autopilot-tools.json")
     with open(spec, "w", encoding="utf-8") as f:
@@ -268,7 +332,8 @@ def implement(game, project, prompt, run_id=None, say=None, client=None, model=N
         game.pause(True)  # (in the try: a game that doesn't answer still gets cleaned up and reported)
         with Codex(CodexConfig(env=app_env(home, work), cwd=session.root)) as codex:
             codex._client._approval_handler = decline  # (the SDK's own accepts commands and file changes)
-            codex.login_api_key(key)
+            if key:
+                codex.login_api_key(key)
             known = known_models(codex)
             if known is not None and model not in known:
                 raise RuntimeError(f"Codex doesn't know the model {model!r} (it offers no tools to models it doesn't "
@@ -288,6 +353,12 @@ def implement(game, project, prompt, run_id=None, say=None, client=None, model=N
             if stopped == "stopped":
                 session.sandbox.stop()
             session.sandbox.close()
+        if lent:
+            try:
+                if return_sign_in(sign_in, *lent):
+                    session.note("codex: the run refreshed the ChatGPT sign-in; handed back to " + sign_in)
+            except OSError as e:
+                session.note(f"codex: couldn't hand the refreshed sign-in back: {e}")
         remove_tree(work)
         try:
             game.release_all()
