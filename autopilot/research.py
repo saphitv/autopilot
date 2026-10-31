@@ -367,6 +367,8 @@ def teleport(game, to, actor=None, why="research"):
             game.set(actor, "position", game.to_native(point), why=why)
         elif name == "godot":
             game.set(actor, "global_position", game.to_native(point), why=why)
+        elif name == "roblox":
+            game.set(actor, "Pivot", game.to_native(point), why=why)
         else:
             raise GameError(f"teleport: no way to move an actor in a {name or 'unknown'} game yet")
         time.sleep(0.1)

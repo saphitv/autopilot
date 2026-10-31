@@ -44,7 +44,7 @@ include = ["autopilot*"]
 namespaces = false
 
 [tool.setuptools.package-data]
-autopilot = ["KIT.md", "build.json", "engines/*.md", "assistants/*.md", "agents/opencode_host/package.json",
+autopilot = ["KIT.md", "build.json", "engines/*.md", "roblox/*.luau", "assistants/*.md", "agents/opencode_host/package.json",
          "agents/opencode_host/bun.lock", "agents/opencode_host/host.ts"]
 
 [tool.pytest.ini_options]
