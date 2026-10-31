@@ -1081,7 +1081,7 @@ function ops.ui(a)
 				end)
 				local enabled = (not okI or interactable ~= false) and g.Active ~= false
 				local center = g.AbsolutePosition + g.AbsoluteSize / 2
-				local y = center.Y + ((sg.IgnoreGuiInset and 0) or inset)
+				local y = center.Y + inset -- (on the screenshot: AbsolutePosition starts below the top bar)
 				local id = #AP.ui + 1
 				AP.ui[id] = g
 				table.insert(els, {
@@ -1122,15 +1122,16 @@ function ops.ui_target(a)
 	if okI and interactable == false then
 		fail(400, tostring(a.id) .. " is disabled")
 	end
+	-- (AbsolutePosition is measured from below the top bar for every ScreenGui, IgnoreGuiInset or not: a
+	-- full-screen one sits at y = -inset. Studio MCP's mouse is measured from there too)
 	local center = g.AbsolutePosition + g.AbsoluteSize / 2
-	local y = center.Y - ((sg.IgnoreGuiInset and guiInset()) or 0)
+	local y = center.Y
 	local to = nil
 	if a.to ~= nil then
 		local d = AP.ui[tonumber(a.to) or -1]
 		if d then
 			local dc = d.AbsolutePosition + d.AbsoluteSize / 2
-			local dsg = shownIn(d)
-			to = { x = dc.X, y = dc.Y - ((dsg and dsg.IgnoreGuiInset and guiInset()) or 0) }
+			to = { x = dc.X, y = dc.Y }
 		end
 	end
 	-- Studio MCP's own way to name it ("LocalPlayer.PlayerGui.HUD.Button"), when every name is a plain identifier
