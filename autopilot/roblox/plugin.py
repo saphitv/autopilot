@@ -63,6 +63,8 @@ DEFAULT_CONTROLS = [
     {"name": "Turn the camera", "action": "look", "keys": ["MouseX", "MouseY", "Left", "Right"], "digital": False},
 ]
 INPUT_OPS = {"key", "input", "ui_act", "pause", "session", "move"}
+# The ops answered without a playtest of this plugin's own (every other one reads or plays the game)
+NO_PLAY_OPS = {"ping", "pause", "session", "context", "record", "input", "codex_manifest", "codex_read"}
 SLOW_OPS = {"capture", "record", "codex_manifest", "codex_read", "levels"}
 UNKNOWN = {"levels", "move", "detectors", "timestep"}
 
@@ -307,6 +309,8 @@ class RobloxPlugin:
             fn = getattr(self, "op_" + str(op), None)
             if fn is None or op in UNKNOWN:
                 raise OpError(400, f"unknown op {op}")
+            if op not in NO_PLAY_OPS:
+                self._need_play()  # (reads and inputs only in a playtest this plugin started: never someone else's)
             result = fn(args)
             out = {"type": "response", "id": rid, "ok": True, "result": result if result is not None else {}}
         except OpError as e:
@@ -458,10 +462,7 @@ class RobloxPlugin:
                 "engine": "roblox", "session_running": False, "paused": False, "game_time": None, "project_dir": "",
                 "controls": DEFAULT_CONTROLS}
         if not self.running:
-            st = self.mcp.state()
-            self.running = st.get("mode") == "Play"
-            if not self.running:
-                return base
+            return base  # (no playtest of this plugin's own: one a person or another task started isn't read)
         ctx = self.client.call("context")
         game_controls = []
         for c in ctx.pop("controls", None) or []:

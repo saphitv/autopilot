@@ -211,3 +211,13 @@ def test_own_playtest_is_taken_back_and_stopped(plugin, monkeypatch):
     assert plugin.op_session({"action": "start"})["running"] is True
     plugin.op_session({"action": "stop"})
     assert ("start_stop_play", {"is_start": False}) in plugin.mcp.calls and plugin.holds.released == 1
+
+
+def test_no_reads_or_inputs_without_own_playtest(plugin):
+    sent = []
+    plugin.send = sent.append
+    plugin.running = False
+    for i, op in enumerate(["screen", "key", "ui_act", "rc", "pose"]):
+        plugin._answer({"type": "request", "id": i, "op": op, "args": {"key": "W", "mode": "press"}})
+    assert all(not r["ok"] and r["status"] == 409 for r in sent)
+    assert plugin.mcp.calls == []
