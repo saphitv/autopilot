@@ -45,6 +45,7 @@ from . import (
     aura_memory,
     bridge,
     engines,
+    ledger,
     memory,
     processes,
     runtime,
@@ -668,6 +669,8 @@ def run_prompt(link, prompt, path=None, model=None, timeout=None, stop=None, sen
             provider = getattr(agent, "current_provider", lambda: "anthropic")()
             # (through Aura, frames are described by its Claude whatever the agent plays: that relay is proxied too)
             seen_by = "anthropic" if run else provider
+            plan_watch = ledger.PlanWatch() if ledger.chatgpt_plan() else None  # (the plan's limits as it starts)
+            ledger_started = time.time()
             with telemetry.RunTelemetry(link, os.path.join(root, "runs", run_id), run_id, project, prompt, kind,
                                         share, providers=tuple(dict.fromkeys((provider, seen_by))),
                                         info=info) as tel:
@@ -694,6 +697,11 @@ def run_prompt(link, prompt, path=None, model=None, timeout=None, stop=None, sen
                 if learned["updated"]:
                     with contextlib.suppress(Exception):
                         link.status(SAVING_MEMORY)
+            try:  # (Autopilot's AI usage, one line a run: autopilot/ledger.py)
+                ledger.record(run_id, project, prompt, kind, report, tel.usage.snapshot(), ledger_started,
+                              plan=plan_watch.end() if plan_watch else None)
+            except Exception as e:  # noqa: BLE001 - never fails the run
+                print(f"note: the run's usage wasn't recorded: {type(e).__name__}: {e}")
             recording = tel.recording()
             missing = None if recording else tel.no_recording()
             close_game(link)  # (every harness has run, and the recording has stopped)
