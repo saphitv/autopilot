@@ -41,6 +41,18 @@ python -m autopilot.roblox \
   It releases the claim after Stop.
 - `--no-media`: no recording or stills.
 
+### On a ChatGPT plan, with no API keys
+
+```sh
+export AUTOPILOT_AGENT=codex AUTOPILOT_CODEX_AUTH=chatgpt AUTOPILOT_DECIDER=luna
+autopilot play "..."
+```
+
+Codex writes and revises the test, and Luna (`gpt-6-luna`, no reasoning, normal speed: `autopilot/luna.py`) makes the
+player's decisions in place of Jev. Both use the ChatGPT sign-in of your own Codex (`codex login`), and count against the
+plan's Codex usage. A Luna decision takes about 0.7-1.6 s (Jev: 0.2-0.3 s), up to 3 s on a fresh thread. With no
+Anthropic or OpenAI key there is no picture viewer: a check of how something *looks* comes back inconclusive.
+
 ## Limits
 
 - **A playtest can't pause**: the world keeps running while the agent thinks (`autopilot/engines/roblox.md` tells the agent).

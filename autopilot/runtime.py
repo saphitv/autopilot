@@ -69,7 +69,14 @@ def jev_client(warm=True):
     option), and while warm, a light call (the model list) is made at once and whenever Jev has been idle for
     WARM_EVERY: a decision made after an idle stretch, a dodge, never waits on a new connection or a server waking.
     Bodies go uncompressed: the SDK zstd-compresses them wherever zstd is importable (Python 3.14+), and Aura's relay
-    doesn't pass Content-Encoding on to TypeSafe."""
+    doesn't pass Content-Encoding on to TypeSafe.
+
+    With AUTOPILOT_DECIDER=luna, Luna answers instead, through Codex on the user's ChatGPT sign-in (autopilot/luna.py).
+    """
+    from . import luna
+
+    if luna.enabled():
+        return luna.LunaClient()
     import httpx2
     from dotenv import load_dotenv
     from typesafe_sdk import TypeSafeClient

@@ -884,6 +884,15 @@ def decision_key_missing():
     or None. Told to the user's own agent (`autopilot mcp`): the key goes in the file, never into its conversation."""
     if aura.enabled() or (os.environ.get("TYPESAFE_API_KEY") or "").strip():
         return None
+    from . import luna
+
+    if luna.enabled():
+        from .agents import codex
+
+        if os.path.isfile(codex.user_auth_file()):
+            return None
+        return ("Autopilot's decision model is Luna (AUTOPILOT_DECIDER=luna), through Codex signed in with ChatGPT: "
+                "run `codex login` first. Then call start_run again.")
     return ("Autopilot needs a key for its decision model, the one that plays the game (TypeSafe: "
             f"https://typesafe.ai). Add the line TYPESAFE_API_KEY=<the key> to {account._user_env_path()}, or enter it "
             "in the Autopilot tab's account setup in the editor (or choose Aura there). Don't paste the key into this "

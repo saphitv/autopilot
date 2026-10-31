@@ -341,7 +341,10 @@ def implement(game, project, prompt, run_id=None, say=None, client=None, model=N
             thread = codex.thread_start(
                 approval_mode=ApprovalMode.deny_all, sandbox=Sandbox.read_only, cwd=session.root, model=model,
                 developer_instructions=system_text(engines.of(game), session.run_rel),
-                config=thread_config(spec, session.budget, os.environ.get("OPENAI_BASE_URL")), ephemeral=True)
+                # (signed in with ChatGPT, Codex talks to ChatGPT's own endpoint: the run's proxy and other API roots
+                # are for API keys, and refuse the sign-in's token)
+                config=thread_config(spec, session.budget, os.environ.get("OPENAI_BASE_URL") if key else None),
+                ephemeral=True)
             stopped = run_turns(thread, message, events, session, t0 + session.budget, effort)
     except Exception as e:
         stopped = f"{type(e).__name__}: {e}"
