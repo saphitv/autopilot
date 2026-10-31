@@ -160,3 +160,54 @@ def test_recording_goes_on_after_a_restart(plugin, monkeypatch):
     assert plugin.record_settings == (4.0, 640, 70)
     plugin.op_record({"action": "stop"})
     assert plugin.record_settings is None and started == [(4.0, 640, 70)]
+
+
+class PlayStudio(FakeMCP):
+    """A Studio already in a playtest."""
+
+    def __init__(self, mode="Play"):
+        super().__init__()
+        self.mode = mode
+
+    def state(self):
+        return {"mode": self.mode, "datamodels": ["Edit", "Server", "Client"]}
+
+    def call(self, tool, args=None, timeout=None, studio=True):
+        if tool == "start_stop_play":
+            self.mode = "Play" if args.get("is_start") else "Edit"
+        return super().call(tool, args, timeout, studio)
+
+
+class FakeHolds:
+    def __init__(self, mine):
+        self._mine = mine
+        self.released = 0
+
+    def mine(self):
+        return self._mine
+
+    def release(self):
+        self.released += 1
+
+
+def test_someone_elses_playtest_is_left_alone(plugin):
+    """A playtest this plugin didn't start (its own hold doesn't say so) is neither played nor stopped."""
+    plugin.mcp = PlayStudio()
+    plugin.running = False
+    plugin.holds = FakeHolds(mine=False)
+    with pytest.raises(rp.OpError, match="didn't start"):
+        plugin.op_session({"action": "start"})
+    assert plugin.op_session({"action": "status"})["running"] is False
+    plugin.op_session({"action": "stop"})
+    assert not any(tool == "start_stop_play" for tool, _ in plugin.mcp.calls)
+
+
+def test_own_playtest_is_taken_back_and_stopped(plugin, monkeypatch):
+    """A plugin restarted mid-run takes back the playtest its own hold says it started, and stops it after."""
+    plugin.mcp = PlayStudio()
+    plugin.running = plugin.started_play = False
+    plugin.holds = FakeHolds(mine=True)
+    monkeypatch.setattr(plugin, "_wait_character", lambda s: None)
+    assert plugin.op_session({"action": "start"})["running"] is True
+    plugin.op_session({"action": "stop"})
+    assert ("start_stop_play", {"is_start": False}) in plugin.mcp.calls and plugin.holds.released == 1

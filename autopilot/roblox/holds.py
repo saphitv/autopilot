@@ -55,6 +55,11 @@ class Holds:
                 out.append(c)
         return out
 
+    def mine(self):
+        """Whether this holder's own record holds play-stop now (a playtest it started, e.g. before it restarted)."""
+        return any(c.get("holderThreadId") == self.holder and c.get("phase") != "released"
+                   and "play-stop" in (c.get("resources") or []) for c in self.claims())
+
     def _write(self, record):
         data = json.dumps(record, indent=2)
         self._run(f"mkdir -p {shlex.quote(os.path.dirname(self.record))} && cat > {shlex.quote(self.record)}",

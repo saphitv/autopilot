@@ -190,9 +190,11 @@ class RobloxPlugin:
         self.client = Agent(self.mcp, "Client", self._on_time)
         self.server = Agent(self.mcp, "Server")
         st = self.mcp.state()
-        self.running = st.get("mode") == "Play"
         if self.holds_spec:
             self.holds = Holds(self.holds_spec, self.holder, self.place_id, sid)
+        # (a playtest going on is this plugin's only when its own hold says it started it: one a person or another
+        # task started is never played, nor stopped, from here)
+        self.running = self.started_play = st.get("mode") == "Play" and self._owns_play()
         log(f"Studio {sid}: {name} ({st.get('mode')})")
 
     def hello(self):
@@ -335,7 +337,7 @@ class RobloxPlugin:
         action = a.get("action") or "status"
         if action == "status":
             st = self.mcp.state()
-            self.running = st.get("mode") == "Play"
+            self.running = st.get("mode") == "Play" and self.started_play
             return {"running": self.running, "scene": self.project}
         if a.get("map"):
             raise OpError(400, f"No scene {a['map']} (a Roblox place has one world: play it without a map)")
@@ -351,7 +353,10 @@ class RobloxPlugin:
     def _start_play(self):
         st = self.mcp.state()
         if st.get("mode") == "Play":
-            self.running = True
+            if not (self.started_play or self._owns_play()):
+                raise OpError(409, "Studio is already in a playtest this plugin didn't start (a person's or another "
+                                   "task's): it is left alone. Run again once it has stopped and been released.")
+            self.running = self.started_play = True
             self._wait_character(30)
             return {"running": True, "scene": self.project}
         if st.get("mode") != "Edit":
@@ -412,10 +417,22 @@ class RobloxPlugin:
         except Exception:
             pass
 
+    def _owns_play(self):
+        if not self.holds:
+            return False  # (no holds to tell whose it is)
+        try:
+            return self.holds.mine()
+        except Exception as e:
+            log(f"holds: {e}")
+            return False
+
     def _stop_play(self):
         self._release_all_now()
         self._stop_recording()
         st = self.mcp.state()
+        if st.get("mode") != "Edit" and not self.started_play:
+            self.running = False  # (not this plugin's playtest: never stopped from here)
+            return {"running": False, "scene": self.project}
         if st.get("mode") != "Edit":
             self.mcp.call("start_stop_play", {"is_start": False}, timeout=30)
             deadline = time.monotonic() + 20
